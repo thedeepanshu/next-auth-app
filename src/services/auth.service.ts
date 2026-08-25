@@ -36,32 +36,59 @@ export async function authenticateUser(
     password: string
 ) {
 
-    await connectToDatabase();
+  await connectToDatabase();
 
-    const user = await User.findOne({
-        email,
-    }).select("+passwordHash");
+  const user = await User.findOne({
+    email,
+  }).select("+passwordHash");
 
-    if (!user) {
-        return null
+  if (!user) {
+    return null;
+  }
+
+  if (
+    user.lockedUntil &&
+    user.lockedUntil.getTime() > Date.now()
+  ) {
+    return null;
+  }
+
+  const passwordValid = await verifyPassword(
+    password,
+    user.passwordHash,
+  );
+
+  if (!passwordValid) {
+    const failedAttempts = user.failedLoginAttempts + 1;
+
+    const MAX_ATTEMPTS = 5;
+    const LOCK_DURATION_MS = 15 * 60 * 1000;
+
+    if (failedAttempts >= MAX_ATTEMPTS) {
+      user.failedLoginAttempts = 0;
+      user.lockedUntil = new Date(
+        Date.now() + LOCK_DURATION_MS
+      );
+    } else {
+      user.failedLoginAttempts = failedAttempts;
     }
 
-    const passwordValid = await verifyPassword(
-        password,
-        user.passwordHash,
-    )
+    await user.save();
 
-    if (!passwordValid) {
-        return null
-    }
+    return null;
+  }
 
-    return ({
-        id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        emailVerified: user.emailVerified,
-    })
+  user.failedLoginAttempts = 0;
+  user.lockedUntil = null;
 
+  await user.save();
+
+  return {
+    id: user._id.toString(),
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    emailVerified: user.emailVerified,
+  };
 }
 

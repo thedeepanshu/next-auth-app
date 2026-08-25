@@ -10,6 +10,8 @@ export interface IUser extends Document {
     emailVerified: Date | null;
     createdAt: Date;
     updatedAt: Date;
+    failedLoginAttempts: number;
+    lockedUntil: Date | null;
 }
 
 const userSchema = new Schema<IUser>(
@@ -43,6 +45,15 @@ const userSchema = new Schema<IUser>(
             type: Date,
             default: null,
         },
+        failedLoginAttempts: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+        lockedUntil: {
+            type: Date,
+            default: null,
+        }
     },
     {
         timestamps: true,
